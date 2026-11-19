@@ -591,7 +591,28 @@ python tests/...                    # 124 条：判据、契约、对焦、降�
 
 ---
 
-## 附：已完成 / 未完成
+## 附 A：想改口径时改哪里
+
+判据全在 `router.py` 顶部，改完跑 `python tests/test_router.py`——**红的那条就是被改动影响的行为**。
+
+| 想改什么 | 改哪里 |
+| --- | --- |
+| 什么算"不该进流水线" | `QUICK_VETO` |
+| 什么算"至少是开发任务" | `DEV_INTENT` |
+| 什么算"企业级特征" | `ENTERPRISE_SIGNALS` |
+| 分档分数线 | `THRESHOLDS` |
+| 每档问几个问题 | `PROBE_BUDGET` |
+| 问什么 | `build_probes` 里的 `gap_map` |
+| 升档触发器文案 | `build_probes` 末尾那条 `escalation` |
+| 各信号的权重 | 各 `Signal(...)` 的第一个数字 |
+| 每档的 stage 与人审点 | `stages_for` / `checkpoints_for` / `TIER_META` |
+| 契约检查规则 | `contract_lint.py` 顶部规则表 |
+
+**改 lint 规则前先想清楚**：它是"契约写没写实"的唯一判据，放宽等于把闸门交给自觉。
+
+---
+
+## 附 B：已完成 / 未完成
 
 | 项 | 状态 |
 | --- | --- |

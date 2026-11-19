@@ -1,50 +1,244 @@
 # dsh-wish · 许愿式编程
-### Wish-Driven Development (WDD) for DeepSeek Harness
 
-**完整版 dsh 插件**：装完就能跑全链路，不依赖本机其他仓库。
+### Wish-Driven Development (WDD) for [DeepSeek Harness](https://github.com/deepseek-ai)
 
-> 一句话需求进来，先判它该走多重，再逼出一份**可机械验收**的契约。
-> 不判满不上工，契约不过 lint 不算完成。
+[![tests](https://github.com/Tommy1Tang/dsh-wish/actions/workflows/tests.yml/badge.svg)](https://github.com/Tommy1Tang/dsh-wish/actions/workflows/tests.yml)
+[![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](#要求)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-- 4 个工具：`wish_route` / `wish_focus` / `wish_contract` / `wish_lint`
-- 判据内核全是 Python 标准库（**零第三方依赖**），165 个 Python 测试 + 12 个 Node 测试
-- **`vendor/` 里随包带着两个执行体**（各自 LICENSE 见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）：
-  - `agent-delivery-gate`（2.8 MB / 292 文件）—— 21 节点流程、门禁、schema
-  - `research-to-project-input`（14.2 MB / 471 文件）—— L2 的建模段、BPMN/OWL、SHACL
+> 你说一句话，脑子里是一幅画。这条链的活儿不是"把你的话记下来"，
+> 而是**在写第一行代码之前，把那幅画逼成一份只有一种读法、而且能被脚本判定的契约**。
 
-```text
-一句话愿望
-   ↓  wish_route     判档：L0 直接做 / L1 角色链 / L2 先建模
-   ↓  wish_focus     按档位出题（L0 不问 / L1 ≤3 问 / L2 不限）
-   ↓  人答
-   ↓  wish_contract  生成 contract.md 并跑 lint
-   ↓  wish_lint      退出码 1 = 不合格，不许开工
-执行：vendor/agent-delivery-gate 的 21 节点门禁
-交付
-```
-
-**为什么叫"许愿式"**：用户说的是一句话，脑子里是一幅画。这条链要做的不是"把你的话写下来"，
-而是**在写第一行代码之前，把那幅画逼成一份只有一种读法、且能被脚本判定的契约**。
+一句需求进来 → 判它该走多重 → 问该问的问题 → 锁一份验收契约 → **契约不合格，不许开工**。
 
 ---
 
-## 装成插件
+## 它解决什么问题
+
+AI 写代码最常见的失败不是"写不出来"，是**写出来的不是你要的，而且你没法证明**。
+
+| 没有它 | 有它 |
+| --- | --- |
+| 「我要个导出功能」→ 做出来是后台定时生成 CSV 落盘，而你想要的是页面上点一下下载 Excel | 契约写成：点『导出』→ 浏览器下载 `待办_20260101.xlsx` → 行数等于列表条数 |
+| 交付时说「都做完了」，你只能信或不信 | `wish_lint` 退出码 0 才算合格，每一条都能复算 |
+| 想清楚之前就开工，返工时已经写了两千行 | 两个检查点都在**写代码之前** |
+| 每个需求都被拉进同一套重流程，改个 typo 也要 19 份文档 | 三档分流：改 typo 直接做，建系统才走全链 |
+
+---
+
+## 快速开始
+
+### 要求
+
+- DeepSeek Harness `0.2.x`
+- Node.js ≥ 18（插件宿主半侧）
+- Python ≥ 3.10（判据内核；**dsh 自带的 Python 3.12 可直接用**）
+- 无第三方 Python 依赖
+
+### 装成 dsh 插件（推荐）
+
+```bash
+git clone https://github.com/Tommy1Tang/dsh-wish.git
+```
+
+在 profile 的 `package.json` 里加两处：
 
 ```jsonc
-// ~/.dsh/profiles/<profile>/package.json
-"dependencies": { "dsh-wish": "link:D:/aiskills/dsh-wish" },
-"dsh": { "profile": { "bundles": [/* ... */, "dsh-wish"] } }
+{
+  "dependencies": { "dsh-wish": "link:/path/to/dsh-wish" },
+  "dsh": { "profile": { "bundles": [ /* ... */, "dsh-wish" ] } }
+}
 ```
 
 ```bash
-cd ~/.dsh/profiles/<profile> && pnpm install
-# 然后重启 dsh —— 新 bundle 不热加载
+cd ~/.dsh/profiles/<你的 profile> && pnpm install
+# 重启 dsh —— 新 bundle 不热加载
 ```
 
-### 怎么确认插件真的生效了
+装好后模型多出四个工具：
 
-不要靠"看工具列表觉得像新的"——我踩过，读错了自己的上下文。**查会话日志**，
-那里面是实际发给模型的内容：
+| 工具 | 干什么 |
+| --- | --- |
+| `wish_route` | 判档：L0/L1/L2 + 工作类型 + 人审点 + 风险 + 该问什么 |
+| `wish_focus` | 按档位出题，生成 `wish/<slug>/answers.md` |
+| `wish_contract` | 回填 → 生成 `contract.md` → 跑检查 |
+| `wish_lint` | 单独检查一份契约 |
+
+> 想知道插件到底有没有生效？别猜，查会话日志——[有一节专门讲怎么看](#确认插件真的生效了)。
+
+### 或者只当 skill 用
+
+不想装插件、或换到别的 harness（Claude Code / Codex / Qoder），把本目录丢进 skill 根即可：
+
+```bash
+# Windows（junction，单一源不复制）
+cmd /c mklink /J "%USERPROFILE%\.dsh\skills\dsh-wish" "D:\path\to\dsh-wish"
+# macOS / Linux
+ln -s /path/to/dsh-wish ~/.dsh/skills/dsh-wish
+```
+
+两种形态共用同一份 Python 内核——**插件只是外壳，判据一行都没复制**。
+
+### 或者纯命令行
+
+```bash
+python router.py "做一个前后端都有的工单系统"        # 判档
+python focus.py "做一个前后端都有的工单系统"         # 出题，建 wish/<slug>/
+python focus.py --complete wish/<slug>              # 生成契约并检查
+python contract_lint.py contract.md                 # 只检查一份契约
+```
+
+---
+
+## 一次完整使用长什么样
+
+```text
+$ python router.py "要和供应商系统对接，每天同步库存"
+
+档位：L2（enterprise）　类型：系统对接
+依据：命中两个以上企业级特征：INTEGRATION + EXTERNAL_BOUNDARY
+预计：2~6 小时　人审点：4 个
+
+要你回答 2 个问题（已预填推荐答案）：
+  Q1. 对方接口文档
+  Q2. 联调谁配合
+```
+
+答完再跑：
+
+```bash
+$ python focus.py --complete wish/要和供应商系统对接-xxx
+契约检查：FAIL
+AC 条数：1
+  ✗ [E1] AC-01：缺 `> 反例：`。举不出反例说明这条 AC 还没钉住
+  ✗ [E4] AC-01：没有任何可观测对象（数字/文件名/引号内名称/界面元素）
+```
+
+补完再跑，直到 `PASS`。**在此之前不许写代码。**
+
+---
+
+## 三种档位
+
+| 档位 | 什么时候 | 流程 | 人审点 | 耗时 |
+| --- | --- | --- | --- | --- |
+| **L0** 直接做 | 改 typo、解释代码、查日志、翻译 | 不进交付链 | 0 | 几分钟 |
+| **L1** 标准 | 加个功能、修个 bug、改个口径 | 对焦 → 契约 → 假交付物 → 角色链 → 门禁 | 2 | 15~40 分钟 |
+| **L2** 企业级 | 建系统、跨系统对接、有合规要求、要业务建模 | 建模 → 人审 → 模型 → 人审 → L1 全部 | 4 | 2~6 小时 |
+
+**分档看的是「不确定性 + 影响面」，不是工作量。** 工作量只影响耗时估算。
+
+同时还判**工作类型**（决定派谁、验什么）：
+
+| 类型 | 形状 | 触发例 |
+| --- | --- | --- |
+| `fix` | 复现 → 定位 → 修复 → 回归 | bug / 报错 / 不生效 |
+| `data` | dry-run → 备份 → 执行 → 人确认 | 迁移 / 订正数据 |
+| `integration` | 对方文档 → 对接清单签字 → 适配层 → 联调 | 对接 / 数据同步 |
+| `report` | 口径 → 数据源 → 实现 → 对账 | 报表 / 对账 |
+| `frontend` | UI 设计 → 实现 → 浏览器 E2E | 页面 / 样式 / 组件 |
+| `backend` | 契约冻结 → 实现 → 单测/集成 | 接口 / 计算 / 定时任务 |
+| `fullstack` | 契约冻结 → 并行 → E2E | 前后端一起改 |
+| `ops` | 不进开发流程，走 deploy-only | 部署 / 重启 |
+| `generic` | 通用链 | 识别不出类型时 |
+
+> **「前端页面的 bug」判 `fix` 而不是 `frontend`**——修 bug 的步骤和写页面不一样。
+
+还有独立的**紧迫度**：命中「产线停 / 赶紧 / 线上挂」时，前置 `止血 → 记录 → 48 小时内补流程`。
+救火不走完整流程，但**不许不留痕**。
+
+---
+
+## 契约长什么样
+
+```markdown
+## 验收条目（每条必须只有一种读法）
+
+### AC-01
+- **判定方式**：在待办列表页点『导出』，浏览器下载 `待办.xlsx`，
+  用 Excel 打开第一行是「编号/标题/状态」，数据行数等于当前列表条数
+> 反例：只把数量乘单价显示出来，没有真的重算 —— 数字对上了，逻辑没换
+
+### AC-02
+- **判定方式**：While 订单处于待支付状态期间，系统保留库存且取消按钮可点
+> 反例：按钮可见但点击报错 —— 看着能取消，实际不能
+
+### 本次不做
+- 权限矩阵 / 消息通知 / 移动端
+
+## 状态枚举
+| 状态 | 说明 |
+| --- | --- |
+| 待支付 | 已下单未付款 |
+| 已取消 | 用户或系统取消 |
+
+## 什么情况下可以放弃（dropped）
+| 理由码 | 含义 | 确认人 |
+| --- | --- | --- |
+| `not-reproducible` | 复现不出来 | 提需求的人 |
+| `obsolete` | 需求已废弃 | 业务方 |
+| `already-exists` | 现有功能已覆盖 | 提需求的人 |
+| `out-of-scope` | 不属本项目范围 | 项目负责人 |
+```
+
+### 检查什么（10 条规则，退出码即结论）
+
+| 规则 | 检查 |
+| --- | --- |
+| E1 | 每条 AC 必须附 `> 反例：` |
+| E2 | 每条 AC 必须有判定方式 |
+| E3 | 不得出现模糊词（友好 / 合理 / 尽量 / 快速 / 适当…） |
+| E4 | 每条 AC 至少一个可观测对象（数字 / 文件名 / 引用名称 / 界面元素） |
+| E5 | 必须有「放弃条款」 |
+| E6 | 放弃条款必须给固定理由码 + 签字人 |
+| E7 | 涉及状态/异常的 AC 必须用 EARS 句式（When / While / If / Where） |
+| E8 | 声明了状态枚举，每个状态都必须有 AC 覆盖 |
+| S1 | 「本次不做」不得为空 |
+| S2 | AC 编号必须连续 |
+
+---
+
+## 常见问题
+
+**Q：它帮我写代码吗？**
+
+不写。它负责**把需求逼清楚、把验收钉死**，代码由 dsh 的模型或你指定的执行体来写。
+装完不等于自动开发，等于"不会糊里糊涂地开发"。
+
+**Q：会不会很慢很烦？**
+
+改 typo、解释代码、查日志这类会判成 **L0，一个问题都不问**，直接做。
+只有 L1 才问最多 3 个问题，每题都带推荐答案——**答「是」就行**。
+
+**Q：判错了怎么办？**
+
+1. 判据是纯规则（不是模型），所以同样的输入永远同样输出，**能追到是哪条信号判的**；
+2. 回答里出现新信息时会**自动改口**并告诉你原因；
+3. 真觉得不对，改 `router.py` 顶部的规则表，跑 `python tests/test_router.py`，红的那条就是被影响的行为。
+
+**Q：没装 `agent-delivery-gate` / `research-to-project-input` 能用吗？**
+
+**能。** 这两个执行体已经随包放在 `vendor/` 里，clone 下来就是完整版。
+如果你自己装了更新版本，`deps.py` 也支持用环境变量指向它们。
+
+**Q：会不会把我的需求发到网上？**
+
+不会。判档和契约检查全是本地 Python，**不联网、不调用任何模型**（模型只在对焦提问时参与）。
+
+**Q：支持 Claude Code / Codex / Qoder 吗？**
+
+支持，但只有 skill 形态（`SKILL.md`）。插件形态是 dsh 专用的。
+
+**Q：为什么叫"许愿式"？**
+
+因为用户给的是一句话，脑子里是一幅画。英文用 **Wish-Driven** 而不是 wishful——
+`wishful thinking` 在英文里是"一厢情愿"，那是这个项目要治的病，不是它的名字。
+
+---
+
+## 确认插件真的生效了
+
+不要靠"看工具列表觉得像新的"。**查会话日志**，那里面是实际发给模型的内容：
 
 ```bash
 node -e "
@@ -54,271 +248,39 @@ const magic=Buffer.from([0x28,0xB5,0x2F,0xFD]);
 let pos=0, cuts=[]; while(true){const i=buf.indexOf(magic,pos); if(i<0)break; cuts.push(i); pos=i+1;}
 let out=''; for(let k=0;k<cuts.length;k++){const s=cuts[k],e=k+1<cuts.length?cuts[k+1]:buf.length;
   try{out+=zlib.zstdDecompressSync(buf.subarray(s,e)).toString('utf8')}catch{}}
-console.log('片段在:', out.includes('【许愿式编程】'));
-console.log('描述在:', out.includes('下一步：L0 直接做'));
-" '$HOME/.dsh/sessions/<你的会话目录>/session.v4.jsonl.zstd'
+console.log('提示片段在:', out.includes('【许愿式编程】'));
+console.log('工具描述在:', out.includes('下一步：L0 直接做'));
+" ~/.dsh/sessions/<你的会话目录>/session.v4.jsonl.zstd
 ```
 
 两个都 `true` = 插件、工具描述、系统提示片段**三层都进了模型上下文**。
 
-装好后模型会多出四个工具：`wish_route` / `wish_focus` / `wish_contract` / `wish_lint`。
-
-## 或者只当 skill 用
-
-```bash
-# 把本目录链到 skill 根（单一源，不复制）
-cmd /c mklink /J "%USERPROFILE%\.dsh\..\dsh\skills\dsh-wish" "D:\aiskills\dsh-wish"
-```
-
-两种形态共用同一份 Python 内核——**插件只是外壳，判据一行都没复制**。
-
 ---
 
-## 完整版：执行体随包带着
-
-`vendor/` 里是两个执行体的快照，**同步自各自仓库**，不是手抄：
-
-```json
-// vendor/VENDOR.json
-"gate": { "source": "D:/aiskills/.../agent-delivery-gate",
-          "commit": "d0d220ca…", "files": 292, "bytes": 2798107,
-          "syncedAt": "2026-11-16T11:51:45" }
-"r2pi": { "source": "D:/aiskills/research-to-project-input",
-          "commit": "eda30b91…", "files": 471, "bytes": 14217989,
-          "syncedAt": "2026-11-16T11:51:45" }
-```
-
-同步与校验：
-
-```bash
-python tools/sync_vendor.py            # 从源仓库刷新
-python tools/sync_vendor.py --check    # 只检查是否落后于源
-```
-
-`refs.py` 拿这份记录核对 6 条引用；`test_vendor.py` 真跑一次 vendor 里的脚本
-（`validate_delivery.py --help`、`next_step.py --check`），确认**拷了文件不等于能跑**这件事没有发生。
-
-> 依然保留降级路径（`--no-gate` / `DSH_WISH_GATE` 指向别处）用于测试，
-> 但**默认行为是完整版**。
-
----
-
-## 命令行（不走插件也能用）
-
-```bash
-python router.py "一句话"                     # 判档
-python router.py --json "一句话"              # 结构化输出
-python router.py "一句话" --answers "回答"     # 答完重新判档
-python focus.py "一句话"                      # 建 wish/<slug>/ 并出题
-python focus.py --complete wish/<slug>        # 生成契约并跑 lint
-python contract_lint.py contract.md           # 只检查契约
-python refs.py                                # 核对 6 条外部引用
-python run_tests.py                           # 全量测试
-```
-
-## 为什么用规则而不是模型
-
-三个理由，都是被前面两轮源码调查逼出来的：
-
-1. **可复算**。同样输入永远同样输出。档位判错了要能追到"是哪条信号判的"，而不是"模型这次觉得"。
-2. **可争论**。所有判据集中在 `router.py` 的 `RULES` 区块。你觉得"多角色不该算企业级"，改一行常量即可——不用重训、不用改提示词。
-3. **可测试**。51 个测试锁住行为。改口径时先看哪个测试红了，比肉眼 review 提示词靠谱。
-
-模型该做的是**对焦时和用户讨论 AC**，不是判断"这算不算复杂"。
-
----
-
-## 两个正交维度：档位 + 工作类型
-
-档位回答「多重」，工作类型回答「派谁、跑哪几段、验什么」。**两件事一起输出，不能只判一个。**
-
-| profile | 形状 | 关键验收 |
-| --- | --- | --- |
-| `ops` | 不走开发流程，进 deploy-only | 留痕 + 回滚命令 |
-| `data` | dry-run → 备份 → 执行 → 人确认 | 不可逆，禁止 AI 代签 |
-| `fix` | 复现 → 定位 → 修复 → 回归 | 先红后绿；不做顺手重构 |
-| `report` | 口径 → 数据源 → 实现 → 对账 | 数字与手工核算一致 |
-| `frontend` | 对焦 → UI 设计 → 实现 → 浏览器 E2E | 真浏览器 |
-| `backend` | 对焦 → 契约 → 实现 → 单测/集成 | E2E 走 CLI/HTTP |
-| `fullstack` | 对焦 → 契约冻结 → 并行 → E2E | 未冻结禁止并行 |
-
-「前端页面的 bug」判 `fix` 不是 `frontend`——**修 bug 的步骤和写页面不一样**。
-
-`urgent`（产线停/赶紧/线上挂）独立于两者：前置 `止血 → 记录 → 48 小时内补流程`，
-L0 时只保留这三段。**救火不走完整流程，但不许不留痕。**
-
----
-
-## 三档是什么
-
-| 档位 | 名字 | 流程 | 人审点 | 耗时 |
-| --- | --- | --- | --- | --- |
-| `L0` | quick | 直接做，不进交付链 | 0 | 几分钟 |
-| `L1` | standard | 对焦 → PRD/AC → 假交付物 → 角色链 → 门禁 | **2** | 15~40 分钟 |
-| `L2` | enterprise | 建模 → 人审 → 模型 → 人审 → L1 全部 | **4** | 2~6 小时 |
-
-两个检查点都在**写代码之前**：对焦（锁契约）+ 假交付物（指着说"不是这个"）。
-
-**分档判据不是"工作量"，是"不确定性 + 影响面"。** 工作量只影响耗时估算；不确定性才决定要不要先建模、要不要插人审。
-
----
-
-## 判定优先级
+## 项目结构
 
 ```text
-1. 单信号强档（SCALE）      → L2   （从0到1/全新系统/推倒重来）
-2. 企业级信号 ≥ 2           → L2   （流程/多角色/集成/合规/调研/迁移/行为变更）
-3. 交付面 ≥ 3               → L2   （数据/逻辑/接口/界面/集成，见下）
-4. 加权分 > 7               → L2
-5. 命中否决词               → L0   （改typo/解释/翻译/查一下/跑个命令）
-6. 命中开发/修复意图        → L1
-7. 加权分 > 2               → L1
-8. 其余                     → L0
+dsh-wish/
+├── lib/index.js          插件宿主半侧：注册 4 个工具，shell out 到 Python
+├── router.py             判档内核（三维度 + 三判据）
+├── focus.py              对焦：出题 → 回填 → 生成契约
+├── contract_lint.py      契约检查（10 条规则），退出码即结论
+├── deps.py               执行体探测与降级
+├── refs.py               外部引用核对
+├── templates/            契约模板
+├── vendor/               随包分发的两个执行体（见 THIRD_PARTY_NOTICES.md）
+├── tools/sync_vendor.py  vendor 同步与溯源
+└── tests/ + test/        177 个测试
 ```
 
-**第 3 条是后加的，因为前两条绑在措辞上。** 「从0到1建系统」和「做一个前后端都有的工单系统」
-是同一件事，但只有前者命中关键词。所以改数**交付面**：
-
-| 愿望 | 面 | 判定 |
-| --- | --- | --- |
-| 前后端工单系统，Vue + Spring | api/logic/ui | **L2** |
-| 纯前端看板，从接口拿数据 | api/ui | L1 |
-| 实现一个登录接口 | api | L1 |
-| 加一个导出按钮 | ui | L1 |
-
-**≥3 个面 = 必须先冻结契约再并行**，这就是 L2 的形状，跟工作量大小无关。
-
-反例：「在现有系统里加一个字段，前端展示出来」跨 4 个面，但每个面都是小改——
-所以有 `PASSTHROUGH` 豁免（加字段/透传/展示出来），命中时面数不参与分档。
-
-顺序有意义：**否决词压不过企业级组合与面数**——"先看一下现状，然后要做一套审批流对接 ERP"
-仍然该进 L2。这两条都有专门的测试。
-
 ---
 
-## 输出长什么样
+## 相关文档
 
-`router.py` 报告六块：档位判定与依据、分维度得分、命中的判据（带原文片段）、要跑的 stage、人审点表、还缺什么。
+- [PLAN.md](PLAN.md) —— 为什么这么设计、判据的来历、**已知不解决什么**（想评估可靠性先读这个）
+- [SKILL.md](SKILL.md) —— skill 形态的操作说明
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) —— `vendor/` 里两个执行体的许可证与归属
 
----
+## License
 
-## 对焦清单与提问预算
-
-档位不仅决定跑多少 stage，**还决定人被问几次**：
-
-| 档位 | 提问预算 | 问什么 |
-| --- | --- | --- |
-| `L0` | 0 | 一句都不问 |
-| `L1` | 3 | 缺的验收标准 / 角色 / 边界 |
-| `L2` | 不限 | 业务调研本来就该访谈 |
-
-清单分成三类，顺序不能换：
-
-1. **`kind=fact` —— 自己去查，不问人。** 技术栈读 `tech.md`，现状派 subagent 读代码。
-   抄自 `grilling` 的原则：`Finding facts is your job, never the user's`。
-2. **`kind=decision` —— 必须问人，每条带推荐答案。** 抄自 `grilling` 的
-   `Word each question so "yes" accepts your recommended answer`：把「问 10 个问题」
-   的成本从 10 次思考降到 10 次确认。
-3. **`kind=escalation` —— 不用回答，只是提示。** L1 时会附一条：如果你的回答里出现
-   多部门协作 / 对接外部系统 / 审批状态流转 / 合规审计 / 存量迁移，那这件事其实是 L2。
-
-### 为什么不是「先 grill 再判档」
-
-`grilling` 的完成条件是「前沿为空：每个分支都走过，没有默默假设」——那是设计评审的标准。
-一个 15 分钟的任务走完这棵树要问 15~20 个问题，产品当场就死了。
-
-正确顺序是：**粗判档位 → 按档位给提问预算 → 提问结果回写并允许升档 → 锁定**。
-**升档是正常路径，不是判档失败**：用户说「加个导出按钮」→ L1，问出「要对接金蝶、月度关账前必须出」→ 升 L2。
-
-同一套技能家族里 `loop-me` 的主张正好相反且更适用于我们：
-
-> **Push right**: defer the checkpoint as far as it will go. Do maximal work before involving the human.
-> **Brief**: the user reads a brief, not a draft.
-
-许愿式编程属于后者——人只该在「东西齐了、就等你一句话」时出现。
-
-### 答完自动改口（不指望用户自诊断）
-
-用户不需要知道自己该是 L1 还是 L2——他只要如实回答问题，**系统在他答完之后重新判一遍**：
-
-```bash
-python router.py "加一个导出按钮" --answers "导出是给财务对账用的，要走审批流程，还要对接金蝶的凭证接口"
-```
-
-```text
-你这几句把这件事从 L1 推到 L2——因为 BUSINESS_FLOW(+3)：涉及业务流程/状态/规则、
-DOMAIN_DATA(+2)：涉及领域实体与数据口径、INTEGRATION(+2)：跨系统集成。
-多加业务建模段和两道人审，耗时 15~40 分钟 → 2~6 小时。
-已按 L2 重排，不需要你判断；如果这不对，说一句就退回。
-```
-
-三条设计规矩：
-
-1. **归因只算「回答里出现、原文没有」的信号**。否则等于把原判断重算一遍，用户看不出是哪句话改的档。
-2. **默认按新档位走，只给一句「不对就说」的口子**。不让用户在"要不要升档"上做判断——那是系统的事。
-3. **不做否定消解**。回答里说「其实不接 SAP」时，原文还在，`reroute` 不会替你猜要删哪一段，而是标记 `needsRestatement` 并请你重述整条愿望。**猜错比不猜贵。**
-
-### 一个必须知道的数学事实
-
-分类器对输入是**单调**的：`original + answers` 是原文的超集，所以**分数只增不减**。
-这意味着：
-
-- 升档可以自动发生（这正是我们要的）
-- **降档只有两条路**：回答里出现否决词（「算了先解释一下就行」→ 退回 L0），或用户重述整条愿望
-
-这条限制是有意的。自动"猜哪句需求作废了"会带来不可解释的档位抖动，比多问一句贵得多。
-
----
-
-### grilling 治不了的部分
-
-grilling 的前提是**用户心里有答案但没说出来**。另一种常见情况是**看到东西才知道要什么**——
-这时候越问越烦。那要用原型（10~20 分钟做个玩具给他指着说「不是这个」），
-而档位正好可以用来决定这两种手段各投多少。
-
----
-
-## 想改口径时改哪里
-
-全在 `router.py` 顶部：
-
-| 想改什么 | 改哪里 |
-| --- | --- |
-| 什么算"不该进流水线" | `QUICK_VETO` |
-| 什么算"至少是开发任务" | `DEV_INTENT` |
-| 什么算"企业级特征" | `ENTERPRISE_SIGNALS` |
-| 分档分数线 | `THRESHOLDS` |
-| 每档问几个问题 | `PROBE_BUDGET` |
-| 问什么 | `build_probes` 里的 `gap_map` |
-| 升档触发器文案 | `build_probes` 末尾那条 `escalation` |
-| 各信号的权重 | 各 `Signal(...)` 的第一个数字 |
-| 每档的 stage 与人审点 | `stages_for` / `checkpoints_for` / `TIER_META` |
-
-改完跑 `python tests/test_router.py`，红的那条就是被改动影响的行为。
-
----
-
-## 已知的不做
-
-- **不调用模型**。需要语义理解的部分（"用户到底想要什么"）留给对焦环节。
-- **不探测项目现状**。不读 cwd、不猜技术栈、不判断仓库大小。这些是 `preflight_env_check.py` 和 `tech.md` 的事。
-- **不决定 AC**。它只说"该走哪条路"，不写验收条目。
-- **不做持久化**。当前是纯函数。要挂进 dsh 插件时，结果由调用方写进 `wish/<id>/route.json`。
-
-## 与三个项目的关系
-
-| 项目 | 关系 |
-| --- | --- |
-| `agent-delivery-gate` | L1/L2 的执行体。本路由器只产出它的入口参数（档位、要跑的 SP 节点、要人审的点） |
-| `research-to-project-input` | L2 的前置建模段。产出 `docs/input/00-07` + `models/baseline-manifest.json`，gate 的 `validate_input_contract.py` 直接能验（C-INPUT-01..04） |
-| `dsh-superagent` | 不在本阶段。它解决"多工单/常驻/面板"，不解决档位判断；到 P3 再引 |
-
----
-
-## 下一步（未做）
-
-1. 把 `route.json` 接进 `/wish` 命令，档位作为不可变的 `Mandate` 落地。
-2. L1 的「对焦」环节：用 `ask_user_question` 把 `gaps` 逐条问掉，产出 `contract.md`。
-3. 档位纠偏回流：记录"实际跑下来超时/返工"的愿望，回填为新的信号权重。
-
-第 3 条是这个路由器唯一能变准的途径——它现在靠我从三个项目里读出来的判断，还没有真实数据。
+[MIT](LICENSE)。`vendor/` 下的两个执行体沿用各自许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

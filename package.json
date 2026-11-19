@@ -2,7 +2,7 @@
   "name": "dsh-wish",
   "version": "0.1.0",
   "private": true,
-  "description": "许愿式编程：判档（L0/L1/L2 + 工作类型）+ 对焦 + 可机械验收的交付契约，带退出码",
+  "description": "Wish-Driven Development (WDD) for DeepSeek Harness — 把一句话需求判成 L0/L1/L2，逼出一份只有一种读法、可被脚本判定（退出码）的验收契约",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -26,7 +26,27 @@
     "cordis.patch.yml",
     "SKILL.md",
     "README.md",
-    "PLAN.md"
+    "PLAN.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tommy1Tang/dsh-wish.git"
+  },
+  "homepage": "https://github.com/Tommy1Tang/dsh-wish#readme",
+  "bugs": {
+    "url": "https://github.com/Tommy1Tang/dsh-wish/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "wish-driven-development",
+    "requirements-engineering",
+    "acceptance-criteria",
+    "ears",
+    "agent"
   ],
   "dsh": {
     "bundle": {
