@@ -21,6 +21,7 @@ SUITES = [
     "test_dropped.py",
     "test_ears.py",
     "test_examples.py",
+    "test_refactor.py",
     "test_focus.py",
     "test_deps.py",
     "test_refs.py",

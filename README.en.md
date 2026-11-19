@@ -136,6 +136,7 @@ A **work type** is decided at the same time (it decides who works and what gets 
 | Type | Shape | Example trigger |
 | --- | --- | --- |
 | `fix` | reproduce → locate → fix → regress | bug / error / not working |
+| `refactor` | **read the current state → impact list → baseline → compatibility → small steps → rollback** | legacy rewrite / stack migration / microservice split |
 | `data` | dry-run → backup → execute → human confirm | migration / data correction |
 | `integration` | counterparty spec → signed mapping list → adapter → joint debugging | third-party sync |
 | `report` | definition → data source → build → reconcile | report / reconciliation |
@@ -146,6 +147,11 @@ A **work type** is decided at the same time (it decides who works and what gets 
 | `generic` | generic chain | type not recognised |
 
 > **"A bug on the frontend page" is `fix`, not `frontend`** — fixing a bug and writing a page are different procedures.
+>
+> **Changing an existing system is `refactor`, not `fullstack`** — its first step is not design, it is
+> **reading what is already there**: run `detect_stack.py`, build a code index, write an impact list,
+> and only then touch the first line. It also skips the business-modelling block — turning JSP into Vue
+> does not need a BPMN diagram.
 
 There is also an independent **urgency** flag: when it matches "line is down / ASAP / production is on fire",
 it prepends `stop the bleeding → record it → complete the process within 48 hours`.

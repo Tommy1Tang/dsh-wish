@@ -120,6 +120,8 @@ PROFILE_RULES = [
      "缺陷修复 —— 复现优先于设计"),
     ("integration", r"(对接|集成|打通|接对方|接第三方|同步数据|数据同步)",
      "对接 —— 对方的进度不是你能控制的"),
+    ("refactor", r"(老系统|遗留系统|存量|技术债|技术栈.{0,8}(迁移|升级|替换)|拆成.{0,6}微服务|架构重构|系统升级)",
+     "存量改造 —— 第一步不是设计，是读懂现状"),
     ("report", r"(报表|统计口径|对账|台账|月报|日报|指标定义)",
      "报表类 —— 口径就是需求"),
     ("fullstack", r"(前后端|全栈|整个系统|端到端|整条链路)",
@@ -175,6 +177,16 @@ PROFILE_STAGES = {
         "联调（对方排期是外部依赖，计划按对方不配合来排）",
         "异常场景逐个跑：断线 / 重复推送 / 乱序 / 对方改字段",
     ],
+    # 存量改造：第一步不是设计，是读懂现状。
+    # 没有"影响面清单"就动手 = 不知道会改坏什么，也不知道改完怎么证明没改坏。
+    "refactor": [
+        "读现状：技术栈探测 + 建代码索引，先搞清楚项目长什么样（不是猜）",
+        "影响面清单：这次会动到哪些文件 / 接口 / 调用方 / 数据表，逐条列出来",
+        "改之前先跑一遍基线测试并存好结果 —— 没有基线就不知道改坏了什么",
+        "兼容策略：接口与数据要不要过渡期（版本化 / 双写 / 灰度）",
+        "小步改 + 每步回归，不要一次改完再测",
+        "回滚预案：出问题怎么退回去（分支 / 开关 / 数据快照）",
+    ],
     "frontend": [
         "对焦：AC 写成「看到什么」（页面元素/文案/交互）",
         "UI 设计：ui-designer → 设计说明（颜色/间距/空态/错误态）",
@@ -197,6 +209,29 @@ PROFILE_STAGES = {
     ],
     "generic": ["对焦", "实现", "验证"],
 }
+
+# refactor 的排列和别人不一样：读现状 → 对焦 → 其余。
+# 拆成两个常量而不是靠列表切片下标，免得哪天改了顺序就错位。
+REFACTOR_AFTER_FOCUS = [
+    "影响面清单：这次会动到哪些文件 / 接口 / 调用方 / 数据表，逐条列出来",
+    "改之前先跑一遍基线测试并存好结果 —— 没有基线就不知道改坏了什么",
+    "兼容策略：接口与数据要不要过渡期（版本化 / 双写 / 灰度）",
+    "小步改 + 每步回归，不要一次改完再测",
+    "回滚预案：问题怎么退回去（分支 / 开关 / 数据快照）",
+]
+
+
+def refactor_read_now(precise: bool) -> list[str]:
+    """改造存量时的"读现状"两步。精确版给能直接跑的命令，通用版给做法。"""
+    if not precise:
+        return ["读现状：技术栈探测 + 建代码索引，先搞清楚项目长什么样（不是猜）"]
+    p = deps.cmd_prefix()
+    return [
+        f"读现状 1：python {p}scripts/detect_stack.py <项目根>"
+        " —— 定技术栈与目录布局，不靠猜",
+        f"读现状 2：python {p}scripts/build_code_index.py（按需）"
+        " —— 建代码索引，后面影响面分析靠它",
+    ]
 ENTERPRISE_SIGNALS = (
     "SCALE", "BUSINESS_FLOW", "MULTI_ROLE", "INTEGRATION", "EXTERNAL_BOUNDARY",
     "COMPLIANCE", "RESEARCH", "MIGRATION", "BEHAVIOR_CHANGE",
@@ -241,6 +276,18 @@ SCALE = [
            r"(从0到1|从零开始|从零搭建|全新系统|重新设计.{0,6}(系统|平台)|整套系统|整个系统|"
            r"系统级重构|多模块|全模块|替代现有系统|推倒重来|一期上线|全新开发)",
            "项目级规模 —— 不是改造，是重做"),
+]
+
+# --- 存量改造: 风险在"改坏"不在"做不出来", 单信号强制 L2 -------------------
+# 触发词刻意收窄，不收单说「改造/重构」：
+#   「改造登录页样式」是 frontend，不是存量改造。
+# 只有涉及老系统、技术栈替换、架构拆分时才算，因为那时第一步不是设计，是**读懂现状**。
+LEGACY = [
+    Signal("LEGACY", "scale", 3,
+           r"(老系统|遗留系统|技术债|存量(系统|代码|功能|数据)|"
+           r"技术栈.{0,8}(迁移|升级|替换)|从.{1,10}(迁移|改造?)到|"
+           r"拆成.{0,6}(微服务|服务)|架构(级|层)?重构|整体重写|系统升级到)",
+           "存量改造 —— 先读懂现状，才敢动第一行"),
 ]
 
 # --- 缺陷修复: 至少 L1 (但单独不构成行为变更) -------------------------------
@@ -329,7 +376,7 @@ DELIVERY = [
 
 ALL_DIMENSIONS = {
     "intent": ("开发/修复意图", DEV_INTENT + FIX),
-    "scale": ("项目规模", SCALE),
+    "scale": ("项目规模/存量改造", SCALE + LEGACY),
     "business": ("业务复杂度", BUSINESS),
     "uncertainty": ("需求不确定性", UNCERTAINTY),
     "risk": ("变更风险", RISK),
@@ -337,11 +384,11 @@ ALL_DIMENSIONS = {
     "delivery": ("交付严肃度", DELIVERY),
 }
 
-ALL_SIGNALS = QUICK_VETO + DEV_INTENT + FIX + SCALE + BUSINESS + UNCERTAINTY + RISK + SYSTEM + DELIVERY
+ALL_SIGNALS = QUICK_VETO + DEV_INTENT + FIX + SCALE + LEGACY + BUSINESS + UNCERTAINTY + RISK + SYSTEM + DELIVERY
 QUICK_VETO_IDS = frozenset(s.id for s in QUICK_VETO)
 
-# 单信号即强制 L2: 命中就意味着"这不是一次改动, 是一次重做"
-FORCE_L2_SINGLE = ("SCALE",)
+# 单信号即强制 L2: 命中就意味着"这不是一次改动, 是一次重做 / 一次换地基"
+FORCE_L2_SINGLE = ("SCALE", "LEGACY")
 
 # 风险标记: 不影响档位, 但必须让人看见
 RISK_FLAGS = {
@@ -770,6 +817,7 @@ PROFILE_LABEL = {
     "data": "数据处理",
     "fix": "缺陷修复",
     "integration": "系统对接",
+    "refactor": "存量改造",
     "report": "报表",
     "frontend": "前端",
     "backend": "后端",
@@ -871,16 +919,42 @@ def stages_for(
     stages: list[str] = []
     if urgent:
         stages += URGENT_STAGES
-    if tier == "L2":
+
+    # 存量改造的 L2 走自己的深度：影响面 + 兼容 + 灰度。
+    # 它**不套业务建模段** —— 把 JSP 换成 Vue 不需要画 BPMN 业务流程图。
+    if tier == "L2" and profile != "refactor":
         stages += precise_l2() if precise else GENERIC_L2
 
+    body = profile_stages(profile, precise)
+
+    if profile == "refactor":
+        # 读现状必须在问问题之前：先看清楚项目长什么样，再决定问什么。
+        head = precise_head()[0] if precise else GENERIC_HEAD[0]     # 环境预检
+        stages.append(head)
+        stages += refactor_read_now(precise)
+        stages.append(
+            "对焦：基于读到的现状产出 contract.md（AC + 边界 + 「不许动」清单）"
+        )
+        stages += REFACTOR_AFTER_FOCUS
+        stages += precise_tail() if precise else GENERIC_TAIL
+        return stages
+
     stages += precise_head() if precise else GENERIC_HEAD
-    stages += [
+    stages += body
+    stages += precise_tail() if precise else GENERIC_TAIL
+    return stages
+
+
+def profile_stages(profile: str, precise: bool) -> list[str]:
+    """按工作类型给形状。
+
+    `refactor` 在 stages_for 里单独排列（读现状在对焦之前），走不到这里；
+    这里只是兜底，保证任何调用方都能拿到一份完整形状。
+    """
+    return [
         _localize(item, precise)
         for item in PROFILE_STAGES.get(profile, PROFILE_STAGES["generic"])
     ]
-    stages += precise_tail() if precise else GENERIC_TAIL
-    return stages
 
 
 def _localize(stage: str, precise: bool) -> str:
