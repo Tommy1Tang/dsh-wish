@@ -2,6 +2,8 @@
 
 ### Wish-Driven Development (WDD) for [DeepSeek Harness](https://github.com/deepseek-ai)
 
+**语言**：简体中文 · [English](README.en.md)
+
 [![tests](https://github.com/Tommy1Tang/dsh-wish/actions/workflows/tests.yml/badge.svg)](https://github.com/Tommy1Tang/dsh-wish/actions/workflows/tests.yml)
 [![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](#要求)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -151,6 +153,11 @@ AC 条数：1
 
 ## 契约长什么样
 
+> 下面是一份**真的会被 lint 判定**的契约节选。完整版见
+> [`examples/contract-good.md`](examples/contract-good.md)（PASS），
+> 以及一组故意写坏的对照 [`examples/contract-bad.md`](examples/contract-bad.md)（命中 9 条规则）。
+> 两份都在 CI 里跑，不会跟规则脱节。
+
 ```markdown
 ## 验收条目（每条必须只有一种读法）
 
@@ -270,7 +277,7 @@ dsh-wish/
 ├── templates/            契约模板
 ├── vendor/               随包分发的两个执行体（见 THIRD_PARTY_NOTICES.md）
 ├── tools/sync_vendor.py  vendor 同步与溯源
-└── tests/ + test/        177 个测试
+└── tests/ + test/        185 个测试
 ```
 
 ---

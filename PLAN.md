@@ -3,7 +3,7 @@
 > 状态：**完整版 dsh 插件**——`vendor/` 里随包分发 `agent-delivery-gate` 与
 > `research-to-project-input`，装完就能跑全链路，不依赖本机其他仓库。
 > 内核仍全是 Python（`lib/index.js` 只做工具注册与退出码翻译）。
-> 测试：175（165 Python + 10 Node）。
+> 测试：185（173 Python + 12 Node）。
 > 本文只写**约束**。每一节都可以被"这条约束不成立"推翻。
 > 判据的来历见 §12——**它们是撞出来的，不是想出来的**。
 

@@ -39,9 +39,18 @@ from pathlib import Path
 # 规则表 —— 想改口径只改这里
 # ===========================================================================
 
+# 硬模糊词：出现即阻断。选词标准 = 主观、且几乎不可能和数字同时出现。
 VAGUE_WORDS = [
     "友好", "合理", "尽量", "快速", "适当", "较好", "完善", "优化一下",
     "简洁", "美观", "流畅", "稳定", "高效", "满意", "良好", "易用",
+    "好用", "顺畅", "顺手", "差不多", "足够好", "一次到位",
+]
+
+# 软模糊词：只警告不阻断。
+# 因为它们经常和具体指标同时出现（「比现在快 50%」「准确率 99.5%」），
+# 硬拦会误伤。写成提示，让人自己判断是不是还说虚了。
+SOFT_VAGUE_WORDS = [
+    "及时", "准确", "更好", "更快", "更准", "更稳定", "体验好", "友好些",
 ]
 
 # 可观测对象: 任何一条命中即算"说得具体"
@@ -261,6 +270,12 @@ def lint_text(text: str) -> Report:
         hits = [word for word in VAGUE_WORDS if word in body]
         if hits:
             report.add("E3", "error", ac.ac_id, f"出现模糊词：{'、'.join(hits)}")
+
+        # W2 软模糊词：和具体指标常常并存，只提示
+        soft = [word for word in SOFT_VAGUE_WORDS if word in body]
+        if soft:
+            report.add("W2", "warning", ac.ac_id,
+                       f"出现偏主观的说法：{'、'.join(soft)}（已有数字就忽略）")
 
         # E7 EARS 句式：涉及状态流转/异常分支的 AC 必须用 EARS 开头
         verdict = ac.verdict_text()
