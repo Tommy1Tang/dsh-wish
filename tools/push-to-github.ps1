@@ -31,9 +31,13 @@ if ($dirty) {
 Say-Ok "工作区干净"
 
 # --- 2. 识别账号（SSH 认证 + 从欢迎语里取用户名）--------------------------
+# 注意：`ssh -T git@github.com` 把欢迎语写到 stderr，且认证成功也返回 exit 1。
+# 在 $ErrorActionPreference='Stop' 下这会被当成致命错误 —— 所以这段要临时放宽。
 $env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15"
-$authOut = ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -T git@github.com 2>&1
-$authText = ($authOut | Out-String)
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$authText = (& ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -T git@github.com 2>&1 | Out-String)
+$ErrorActionPreference = $prevEap
 
 if ($authText -notmatch "successfully authenticated") {
   Write-Host $authText
