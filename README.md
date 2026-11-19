@@ -1,15 +1,16 @@
 # dsh-wish · 许愿式编程
+### Wish-Driven Development (WDD) for DeepSeek Harness
 
 **完整版 dsh 插件**：装完就能跑全链路，不依赖本机其他仓库。
 
+> 一句话需求进来，先判它该走多重，再逼出一份**可机械验收**的契约。
+> 不判满不上工，契约不过 lint 不算完成。
+
 - 4 个工具：`wish_route` / `wish_focus` / `wish_contract` / `wish_lint`
-- 判据内核全是 Python（142 个测试）
-- **`vendor/` 里随包带着两个执行体**：
+- 判据内核全是 Python 标准库（**零第三方依赖**），165 个 Python 测试 + 12 个 Node 测试
+- **`vendor/` 里随包带着两个执行体**（各自 LICENSE 见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）：
   - `agent-delivery-gate`（2.8 MB / 292 文件）—— 21 节点流程、门禁、schema
   - `research-to-project-input`（14.2 MB / 471 文件）—— L2 的建模段、BPMN/OWL、SHACL
-
-一句话需求进来，先判它该走多重，再逼出一份**可机械验收**的契约。
-不判满不上工，契约不过 lint 不算完成。
 
 ```text
 一句话愿望
@@ -21,6 +22,9 @@
 执行：vendor/agent-delivery-gate 的 21 节点门禁
 交付
 ```
+
+**为什么叫"许愿式"**：用户说的是一句话，脑子里是一幅画。这条链要做的不是"把你的话写下来"，
+而是**在写第一行代码之前，把那幅画逼成一份只有一种读法、且能被脚本判定的契约**。
 
 ---
 
