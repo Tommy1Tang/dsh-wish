@@ -1,99 +1,94 @@
 ﻿#!/usr/bin/env pwsh
-# 把 dsh-wish 推到 GitHub。
+# 把 dsh-wish 推到 GitHub（SSH）。
 #
-# 用法（在项目根目录）：
-#   pwsh tools/push-to-github.ps1 -Owner 你的用户名 -Repo dsh-wish
-#   pwsh tools/push-to-github.ps1 -Owner 你的用户名 -Repo dsh-wish -Proxy http://127.0.0.1:7897
-#   pwsh tools/push-to-github.ps1 -Owner 你的用户名 -Repo dsh-wish -Create   # 需已登录 gh CLI
+# 前置：仓库已存在（在 https://github.com/new 建一个空的，别勾 README/gitignore/license），
+#       且本机 SSH key 已在 GitHub 上登记。
 #
-# 它做三件事：检查连通性 -> 配 remote -> push。不替你创建仓库（除非 -Create 且有 gh）。
+# 用法：
+#   .\tools\push-to-github.ps1                      # 自动识别 GitHub 账号
+#   .\tools\push-to-github.ps1 -Repo dsh-wish       # 指定仓库名（默认 dsh-wish）
+#   .\tools\push-to-github.ps1 -Owner SomeoneElse   # 指定组织/账号
+#   .\tools\push-to-github.ps1 -DryRun              # 只检查，不推
 
 param(
-  [Parameter(Mandatory = $true)][string]$Repo,
-  [Parameter(Mandatory = $true)][string]$Owner,
-  [ValidateSet("public", "private")][string]$Visibility = "public",
-  [string]$Proxy = "",
-  [switch]$Create
+  [string]$Repo = "dsh-wish",
+  [string]$Owner = "",
+  [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-function Stop-With($msg) {
-  Write-Host "[x] $msg" -ForegroundColor Red
-  exit 1
-}
-function Say-Ok($msg) {
-  Write-Host "[ok] $msg" -ForegroundColor Green
-}
+function Stop-With($msg) { Write-Host "[x] $msg" -ForegroundColor Red; exit 1 }
+function Say-Ok($msg)    { Write-Host "[ok] $msg" -ForegroundColor Green }
 
-# --- 1. 工作区必须干净 ----------------------------------------------------
+# --- 1. 工作区干净 --------------------------------------------------------
 $dirty = git status --porcelain
 if ($dirty) {
   Write-Host $dirty
-  Stop-With "工作区有未提交改动，先 git add + commit 再推"
+  Stop-With "工作区有未提交改动，先 git add + commit"
 }
 Say-Ok "工作区干净"
 
-# --- 2. 连通性 ------------------------------------------------------------
-$proxyArgs = @()
-if ($Proxy) {
-  $proxyArgs = @("-c", "http.proxy=$Proxy", "-c", "https.proxy=$Proxy")
-  Write-Host "  使用代理: $Proxy"
-}
+# --- 2. 识别账号（SSH 认证 + 从欢迎语里取用户名）--------------------------
+$env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15"
+$authOut = ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -T git@github.com 2>&1
+$authText = ($authOut | Out-String)
 
-$reachable = $false
-try {
-  git @proxyArgs ls-remote --heads https://github.com/octocat/Hello-World.git 2>&1 | Out-Null
-  if ($LASTEXITCODE -eq 0) { $reachable = $true }
-} catch {
-  $reachable = $false
+if ($authText -notmatch "successfully authenticated") {
+  Write-Host $authText
+  Stop-With "SSH 认证失败：确认 id_ed25519 已加到 GitHub 账号的 SSH keys"
 }
+Say-Ok "SSH 认证通过"
 
-if (-not $reachable) {
-  Write-Host "  如果你有代理，加 -Proxy http://127.0.0.1:7897 重试" -ForegroundColor Yellow
-  Write-Host "  或先自查: Test-NetConnection github.com -Port 443" -ForegroundColor Yellow
-  Stop-With "连不上 github.com:443"
+if (-not $Owner) {
+  if ($authText -match "Hi ([A-Za-z0-9\-]+)!") {
+    $Owner = $Matches[1]
+  } else {
+    Stop-With "没能从认证欢迎语里识别账号，请用 -Owner 指定"
+  }
 }
-Say-Ok "能连上 github.com"
+Say-Ok "账号: $Owner"
 
-# --- 3. 可选：用 gh 建仓库 ------------------------------------------------
 $full = "$Owner/$Repo"
-$gh = Get-Command gh -ErrorAction SilentlyContinue
+$url  = "git@github.com:$full.git"
 
-if ($Create) {
-  if (-not $gh) { Stop-With "-Create 需要 gh CLI，未安装" }
-  $ghArgs = @("repo", "create", $Repo, "--source", ".", "--push", "--" + $Visibility)
-  Write-Host "  gh repo create $Repo ..."
-  & gh @ghArgs
-  if ($LASTEXITCODE -ne 0) { Stop-With "gh repo create 失败" }
-  Say-Ok "仓库已创建并推送"
+# --- 3. 仓库必须已存在 ----------------------------------------------------
+$probe = git ls-remote --heads $url 2>&1
+if ($LASTEXITCODE -ne 0) {
   Write-Host ""
-  Write-Host "仓库地址: https://github.com/$full" -ForegroundColor Cyan
+  Write-Host "  下一步：去 https://github.com/new 建一个空仓库，名字填 $Repo" -ForegroundColor Yellow
+  Write-Host "  不要勾选 README / .gitignore / license（本仓库已经有了）" -ForegroundColor Yellow
+  Stop-With "远程仓库 $full 还不存在"
+}
+Say-Ok "远程仓库存在"
+
+# --- 4. 配 remote ---------------------------------------------------------
+$existing = $null
+try { $existing = git remote get-url origin 2>$null } catch { $existing = $null }
+if ($existing -eq $url) {
+  Say-Ok "origin 已是 $url"
+} elseif ($existing) {
+  git remote set-url origin $url
+  Say-Ok "origin 改为 $url"
+} else {
+  git remote add origin $url
+  Say-Ok "origin 设为 $url"
+}
+
+# --- 5. 推 ---------------------------------------------------------------
+$branch = git branch --show-current
+if (-not $branch) { Stop-With "当前不在任何分支上" }
+
+if ($DryRun) {
+  Say-Ok "[DryRun] 会执行: git push -u origin $branch"
   exit 0
 }
 
-# --- 4. 配 remote 并推 ----------------------------------------------------
-$url = "https://github.com/$full.git"
-$existing = $null
-try { $existing = git remote get-url origin 2>$null } catch { $existing = $null }
+Write-Host "  推送 $branch ..."
+git push -u origin $branch
+if ($LASTEXITCODE -ne 0) { Stop-With "推送失败（见上面的 git 输出）" }
 
-if ($existing) {
-  git remote set-url origin $url
-  Say-Ok "origin 已改为 $url"
-} else {
-  git remote add origin $url
-  Say-Ok "origin 已设为 $url"
-}
-
-Write-Host "  推送 main ..."
-git @proxyArgs push -u origin main
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "  常见原因：" -ForegroundColor Yellow
-  Write-Host "    - 没有凭据：配 Git Credential Manager，或用 PAT" -ForegroundColor Yellow
-  Write-Host "    - 仓库还没建：去 https://github.com/new 建空仓库 $Repo" -ForegroundColor Yellow
-  Stop-With "推送失败"
-}
 Say-Ok "推送完成"
 Write-Host ""
 Write-Host "仓库地址: https://github.com/$full" -ForegroundColor Cyan
