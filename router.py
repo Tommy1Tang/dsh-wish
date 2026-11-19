@@ -568,9 +568,13 @@ def classify(text: str, precise: bool | None = None) -> Route:
     passthrough = bool(re.search(PASSTHROUGH, text))
 
     # ---- 分档. 优先级: 单信号强档 > 企业级组合 > 面数 > 分数 > 否决 > 意图 --
-    if any(name in hit_ids for name in FORCE_L2_SINGLE):
+    # 两种强信号要分开归因：判错了才知道该改哪一条。
+    if "SCALE" in hit_ids:
         tier, decided_by = "L2", "scale"
-        reason = "项目级规模（这不是一次改动，是重做）"
+        reason = "项目级规模 —— 这不是一次改动，是重做"
+    elif "LEGACY" in hit_ids:
+        tier, decided_by = "L2", "legacy"
+        reason = "存量改造 —— 风险在「改坏」，不在「做不出来」"
     elif len(enterprise) >= 2:
         tier, decided_by = "L2", "enterprise"
         reason = "命中两个以上企业级特征：" + " + ".join(enterprise)

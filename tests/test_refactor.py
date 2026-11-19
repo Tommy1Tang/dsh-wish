@@ -36,8 +36,15 @@ class TestLegacyTier(unittest.TestCase):
     def test_legacy_stack_migration_is_l2(self) -> None:
         route = classify("把现在的 JSP 老系统改造成 Vue3 前后端分离", precise=True)
         self.assertEqual(route.tier, "L2")
-        self.assertEqual(route.decided_by, "scale")
+        self.assertEqual(route.decided_by, "legacy", "归因要指向 LEGACY，不是 SCALE")
         self.assertIn("LEGACY", {h.id for h in route.hits})
+
+    def test_attribution_is_not_scale(self) -> None:
+        """「重做」和「改造」是两种风险，理由不能写成同一句."""
+        legacy = classify("把现在的 JSP 老系统改造成 Vue3 前后端分离", precise=True)
+        fresh = classify("从0到1做一个全新的订单系统", precise=True)
+        self.assertNotEqual(legacy.decided_by, fresh.decided_by)
+        self.assertNotEqual(legacy.reason, fresh.reason)
 
     def test_microservice_split_is_l2(self) -> None:
         route = classify("重构现有的订单服务，拆成微服务", precise=True)
