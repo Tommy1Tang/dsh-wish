@@ -16,7 +16,9 @@ param(
   [switch]$DryRun
 )
 
-$ErrorActionPreference = "Stop"
+# 不用 Stop：git / ssh 的正常行为就会往 stderr 写东西（如 "Repository not found"、
+# SSH 欢迎语），在 Stop 下会被当成致命错误。改为每一步显式检查 $LASTEXITCODE。
+$ErrorActionPreference = "Continue"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
 function Stop-With($msg) { Write-Host "[x] $msg" -ForegroundColor Red; exit 1 }
@@ -31,13 +33,9 @@ if ($dirty) {
 Say-Ok "工作区干净"
 
 # --- 2. 识别账号（SSH 认证 + 从欢迎语里取用户名）--------------------------
-# 注意：`ssh -T git@github.com` 把欢迎语写到 stderr，且认证成功也返回 exit 1。
-# 在 $ErrorActionPreference='Stop' 下这会被当成致命错误 —— 所以这段要临时放宽。
+# `ssh -T git@github.com` 把欢迎语写到 stderr，且认证成功也返回 exit 1 —— 所以不看退出码，看文字。
 $env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15"
-$prevEap = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
 $authText = (& ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -T git@github.com 2>&1 | Out-String)
-$ErrorActionPreference = $prevEap
 
 if ($authText -notmatch "successfully authenticated") {
   Write-Host $authText
@@ -58,8 +56,9 @@ $full = "$Owner/$Repo"
 $url  = "git@github.com:$full.git"
 
 # --- 3. 仓库必须已存在 ----------------------------------------------------
-$probe = git ls-remote --heads $url 2>&1
-if ($LASTEXITCODE -ne 0) {
+$probe = (& git ls-remote --heads $url 2>&1 | Out-String)
+$probeCode = $LASTEXITCODE
+if ($probeCode -ne 0) {
   Write-Host ""
   Write-Host "  下一步：去 https://github.com/new 建一个空仓库，名字填 $Repo" -ForegroundColor Yellow
   Write-Host "  不要勾选 README / .gitignore / license（本仓库已经有了）" -ForegroundColor Yellow
@@ -68,8 +67,9 @@ if ($LASTEXITCODE -ne 0) {
 Say-Ok "远程仓库存在"
 
 # --- 4. 配 remote ---------------------------------------------------------
-$existing = $null
-try { $existing = git remote get-url origin 2>$null } catch { $existing = $null }
+$existing = (& git remote get-url origin 2>&1 | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) { $existing = "" }
+
 if ($existing -eq $url) {
   Say-Ok "origin 已是 $url"
 } elseif ($existing) {
