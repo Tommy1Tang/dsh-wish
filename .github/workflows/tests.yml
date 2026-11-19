@@ -1,0 +1,98 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.11", "3.12"]
+        include:
+          - os: windows-latest
+            python: "3.12"
+
+    env:
+      # 交割文档和判据里全是中文，Windows 默认代码页不是 UTF-8
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # 故意不装任何依赖：内核只用标准库，需要依赖就是回归
+      - name: 编译检查
+        run: python -m compileall -q *.py tools
+
+      - name: 单元测试
+        run: python run_tests.py
+
+      - name: 契约 lint 自检
+        run: python contract_lint.py --selftest
+
+      - name: 判档自检
+        run: python router.py --selftest
+
+  node:
+    name: plugin host (node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 插件宿主半侧测试
+        run: node --test test/index.test.mjs
+
+  vendor:
+    name: vendor 完整性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 溯源清单可读且文件齐全
+        run: |
+          python -c "
+          import json, pathlib, sys
+          manifest = json.loads(pathlib.Path('vendor/VENDOR.json').read_text(encoding='utf-8'))
+          problems = []
+          for key, rec in manifest.items():
+              if not rec.get('source') or not rec.get('commit'):
+                  problems.append(f'{key}: 缺来源或 commit')
+          gate = pathlib.Path('vendor/agent-delivery-gate/scripts/validate_delivery.py')
+          if not gate.is_file():
+              problems.append('gate 快照缺主要脚本')
+          r2pi = pathlib.Path('vendor/research-to-project-input/scripts/pipeline_runner.py')
+          if not r2pi.is_file():
+              problems.append('r2pi 快照缺主要脚本')
+          print('vendor 检查:', 'OK' if not problems else problems)
+          sys.exit(1 if problems else 0)
+          "
+
+      - name: vendor 里的脚本真能跑
+        run: python vendor/agent-delivery-gate/scripts/validate_delivery.py --help > /dev/null
