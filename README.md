@@ -37,6 +37,26 @@ cd ~/.dsh/profiles/<profile> && pnpm install
 # 然后重启 dsh —— 新 bundle 不热加载
 ```
 
+### 怎么确认插件真的生效了
+
+不要靠"看工具列表觉得像新的"——我踩过，读错了自己的上下文。**查会话日志**，
+那里面是实际发给模型的内容：
+
+```bash
+node -e "
+const fs=require('fs'), zlib=require('zlib');
+const buf=fs.readFileSync(process.argv[1]);
+const magic=Buffer.from([0x28,0xB5,0x2F,0xFD]);
+let pos=0, cuts=[]; while(true){const i=buf.indexOf(magic,pos); if(i<0)break; cuts.push(i); pos=i+1;}
+let out=''; for(let k=0;k<cuts.length;k++){const s=cuts[k],e=k+1<cuts.length?cuts[k+1]:buf.length;
+  try{out+=zlib.zstdDecompressSync(buf.subarray(s,e)).toString('utf8')}catch{}}
+console.log('片段在:', out.includes('【许愿式编程】'));
+console.log('描述在:', out.includes('下一步：L0 直接做'));
+" '$HOME/.dsh/sessions/<你的会话目录>/session.v4.jsonl.zstd'
+```
+
+两个都 `true` = 插件、工具描述、系统提示片段**三层都进了模型上下文**。
+
 装好后模型会多出四个工具：`wish_route` / `wish_focus` / `wish_contract` / `wish_lint`。
 
 ## 或者只当 skill 用
