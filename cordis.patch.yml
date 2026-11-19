@@ -1,0 +1,7 @@
+# dsh-wish bundle patch
+#
+# 只有一行插入：把插件自身挂进组合。
+# 不 disable 任何东西——这个插件不接管 turn/step，也不改别人的配置。
+- insert:
+    - id: dsh-wish
+      name: 'dsh-wish'

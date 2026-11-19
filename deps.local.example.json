@@ -1,0 +1,10 @@
+{
+  "_comment": "把本文件复制成 deps.local.json 并改成你机器上的路径。deps.local.json 不会提交（见 .gitignore）。",
+  "_why": "开发和核对引用时，让它指向源仓库而不是 vendor 里的快照；不填就走 vendor，同样能用。",
+  "gate": [
+    "D:/path/to/agent-delivery-gate"
+  ],
+  "r2pi": [
+    "D:/path/to/research-to-project-input"
+  ]
+}

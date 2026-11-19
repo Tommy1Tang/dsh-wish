@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+
+# 本机配置：记录开发机上的源仓库路径，不能提交（会指向别人的机器）
+deps.local.json
+
+# 运行产物：每次对焦会在项目里建 wish/<slug>/
+wish/
+wish-live/
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

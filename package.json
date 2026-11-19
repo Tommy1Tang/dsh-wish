@@ -1,0 +1,50 @@
+{
+  "name": "dsh-wish",
+  "version": "0.1.0",
+  "private": true,
+  "description": "许愿式编程：判档（L0/L1/L2 + 工作类型）+ 对焦 + 可机械验收的交付契约，带退出码",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "router.py",
+    "contract_lint.py",
+    "focus.py",
+    "deps.py",
+    "refs.py",
+    "templates",
+    "vendor",
+    "tools",
+    "cordis.patch.yml",
+    "SKILL.md",
+    "README.md",
+    "PLAN.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "manifestVersion": 1
+  },
+  "scripts": {
+    "test": "node --test test/index.test.mjs",
+    "python-test": "python run_tests.py",
+    "vendor:sync": "python tools/sync_vendor.py",
+    "vendor:check": "python tools/sync_vendor.py --check"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

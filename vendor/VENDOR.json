@@ -1,0 +1,18 @@
+{
+  "gate": {
+    "source": "D:\\aiskills\\software-development-team-v2-graph\\agent-delivery-gate",
+    "commit": "d0d220ca0a7c17e0934160f184d9bb1df8382609",
+    "files": 292,
+    "bytes": 2798107,
+    "syncedAt": "2026-11-16T11:51:45",
+    "why": "L1/L2 的执行体：流程节点、门禁脚本、schema、模板"
+  },
+  "r2pi": {
+    "source": "D:\\aiskills\\research-to-project-input",
+    "commit": "eda30b912453d9dc849bbd5d65d16687c1f11a61",
+    "files": 471,
+    "bytes": 14217989,
+    "syncedAt": "2026-11-16T11:51:45",
+    "why": "L2 的建模段：需求图、BPMN/OWL 生成、SHACL 校验"
+  }
+}
